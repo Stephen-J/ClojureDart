@@ -205,7 +205,8 @@
                      (concat (:paths *deps*)
                        (mapcat (fn [{:keys [local/root paths]}]
                                  (when root paths))
-                         (vals (:libs *deps*)))))
+                         (vals (:libs *deps*)))
+                       (-> *deps* :classpath-args :extra-paths)))
               dirty-nses (volatile! #{})
               recompile-count (volatile! 0)
               compile-nses
@@ -471,10 +472,12 @@
       (println  @versions-replaced "versions upgraded to" latest))))
 
 (def help-spec {:short "-h" :long "--help" :doc "Print this help."})
+(def aliases-spec {:short "-a" :long "--aliases" :doc "add aliases when calculating basis"
+                   :parser (fn [aliases] (edn/read-string aliases))})
 
 (def commands
   {:doc "This program compiles Clojuredart files to dart files."
-   :options [help-spec]
+   :options [help-spec aliases-spec]
    "init" {:doc "Set up the current clojure project as a ClojureDart/Flutter project according to :cljd/opts in deps.edn."
            :options false
            #_#_#_#_
@@ -558,8 +561,8 @@
   (binding [*ansi* (and (System/console) (get (System/getenv) "TERM"))
             compiler/*lib-path*
             (str (.getPath (java.io.File. "lib")) "/")]
-    (binding [*deps* (deps/create-basis nil)]
-      (let [[options cmd cmd-opts & args] (parse-args commands args)]
+    (let [[options cmd cmd-opts & args] (parse-args commands args)]
+      (binding [*deps* (deps/create-basis {:aliases (:aliases options)})]
         (case cmd
           ("compile" "watch" "flutter" "test") (sync-pubspec!)
           nil)
