@@ -205,12 +205,8 @@
                      (concat (:paths *basis*)
                        (mapcat (fn [{:keys [local/root paths]}]
                                  (when root paths))
-<<<<<<< Updated upstream
-                         (vals (:libs *deps*)))))
-=======
                          (vals (:libs *basis*)))
                        (-> *basis* :argmap :extra-paths)))
->>>>>>> Stashed changes
               dirty-nses (volatile! #{})
               recompile-count (volatile! 0)
               compile-nses
@@ -563,13 +559,8 @@
   (binding [*ansi* (and (System/console) (get (System/getenv) "TERM"))
             compiler/*lib-path*
             (str (.getPath (java.io.File. "lib")) "/")]
-<<<<<<< Updated upstream
-    (binding [*deps* (deps/create-basis nil)]
-      (let [[options cmd cmd-opts & args] (parse-args commands args)]
-=======
     (let [[options cmd cmd-opts & args] (parse-args commands args)]
       (binding [*basis* (edn/read-string (slurp (java.lang.System/getProperty "clojure.basis"))) #_(deps/create-basis {:aliases (:aliases options)})]
->>>>>>> Stashed changes
         (case cmd
           ("compile" "watch" "flutter" "test") (sync-pubspec!)
           nil)
