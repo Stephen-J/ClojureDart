@@ -15,7 +15,7 @@
             [clojure.java.io :as io]))
 
 (def ^:dynamic *ansi* false)
-(def ^:dynamic *deps*)
+(def ^:dynamic *basis*)
 
 (defn compile-core []
   (compiler/compile 'cljd.core))
@@ -149,7 +149,7 @@
   (.delete f))
 
 (defn ensure-cljd-analyzer! []
-  (let [cljd-sha (get-in *deps* [:libs 'tensegritics/clojuredart :git/sha])
+  (let [cljd-sha (get-in *basis* [:libs 'tensegritics/clojuredart :git/sha])
         parent-dir (-> (System/getProperty "user.dir") (java.io.File. ".clojuredart") (java.io.File. "cache")
                      (java.io.File. (or cljd-sha "dev")))
         parent-dir (doto parent-dir (cond-> (not cljd-sha) del-tree) .mkdirs)
@@ -163,7 +163,7 @@
           java.io.ByteArrayInputStream.
           (.transferTo out))))
     (when-not (.exists analyzer-dart)
-      (exec {:dir analyzer-dir} (some-> *deps* :cljd/opts :kind name) "pub" "add" "analyzer:5.13.0")
+      (exec {:dir analyzer-dir} (some-> *basis* :cljd/opts :kind name) "pub" "add" "analyzer:5.13.0")
       (with-open [out (java.io.FileOutputStream. analyzer-dart)]
         (-> (Thread/currentThread) .getContextClassLoader (.getResourceAsStream "analyzer.dart") (.transferTo out))))
     (.getPath analyzer-dir)))
@@ -180,7 +180,7 @@
   [& {:keys [watch namespaces flutter] :or {watch false}}]
   (let [user-dir (System/getProperty "user.dir")
         analyzer-dir (ensure-cljd-analyzer!)]
-    (exec {:in nil :out nil} (some-> *deps* :cljd/opts :kind name) "pub" "get")
+    (exec {:in nil :out nil} (some-> *basis* :cljd/opts :kind name) "pub" "get")
     (with-taps
       [(fn [x]
          (case (::compiler/msg-kind x)
@@ -193,7 +193,7 @@
                 compiler/analyzer-info nil]
         (set! compiler/analyzer-info
           (compiler/mk-live-analyzer-info (exec {:async true :in nil :out nil :dir analyzer-dir}
-                                            (some-> *deps* :cljd/opts :kind name)
+                                            (some-> *basis* :cljd/opts :kind name)
                                             "pub" "run" "bin/analyzer.dart" user-dir)))
         (newline)
         (println (title (str "Compiling cljd.core to Dart "
@@ -202,10 +202,15 @@
                             :dart3 "3"))))
         (compile-core)
         (let [dirs (into #{} (map #(java.io.File. %))
-                     (concat (:paths *deps*)
+                     (concat (:paths *basis*)
                        (mapcat (fn [{:keys [local/root paths]}]
                                  (when root paths))
+<<<<<<< Updated upstream
                          (vals (:libs *deps*)))))
+=======
+                         (vals (:libs *basis*)))
+                       (-> *basis* :argmap :extra-paths)))
+>>>>>>> Stashed changes
               dirty-nses (volatile! #{})
               recompile-count (volatile! 0)
               compile-nses
@@ -313,11 +318,11 @@
   (when (compile-cli :namespaces namespaces)
     (newline)
     (println (title "Running tests..."))
-    (let [bin (some-> *deps* :cljd/opts :kind name)]
+    (let [bin (some-> *basis* :cljd/opts :kind name)]
       (System/exit (exec {:in nil #_#_:out nil} bin "test")))))
 
 (defn gen-entry-point []
-  (let [deps-cljd-opts (:cljd/opts *deps*)
+  (let [deps-cljd-opts (:cljd/opts *basis*)
         bin (some-> deps-cljd-opts :kind name)
         main-ns (or (:main deps-cljd-opts)
                   (throw (Exception. "A namespace must be specified in deps.edn under :cljd/opts :main or as argument to init.")))
@@ -332,7 +337,7 @@
     (spit entry-point (str "export " (compiler/with-dart-str (compiler/write-string-literal lib)) " show main;\n"))))
 
 (defn init-project [bin-opts]
-  (let [deps-cljd-opts (:cljd/opts *deps*)
+  (let [deps-cljd-opts (:cljd/opts *basis*)
         bin (or (some-> deps-cljd-opts :kind name)
               (throw (Exception. "A project kind (:dart or :flutter) must be specified in deps.edn under :cljd/opts :kind.")))
         main-ns (or (:main deps-cljd-opts)
@@ -526,7 +531,7 @@
                               :when sha]
                           [[name sha] (-> path java.io.File. .exists)]))
         declared-deps (into {}
-                        (for [pubspec (keep find-pubspec (vals (deps/resolve-deps *deps* {})))
+                        (for [pubspec (keep find-pubspec (vals (:libs *basis*)) #_(vals (deps/resolve-deps *deps* {})))
                               :let [{:strs [name]} (.load parser pubspec)
                                     sha (sha256 pubspec)]]
                           [[name sha] pubspec]))
@@ -536,7 +541,7 @@
         deps-to-add (transduce (filter existing-deps) dissoc declared-deps existing-deps)]
 
     (when-some [names (seq (map first deps-to-remove))]
-      (apply exec {:in nil #_#_:out nil} (some-> *deps* :cljd/opts :kind name) "pub" "remove"
+      (apply exec {:in nil #_#_:out nil} (some-> *basis* :cljd/opts :kind name) "pub" "remove"
         names)
       (run! #(del-tree (java.io.File. ".clojuredart/deps" (second %))) deps-to-remove))
 
@@ -546,20 +551,25 @@
               :let [f (java.io.File. ".clojuredart/deps" sha)]]
         (.mkdirs f)
         (spit (java.io.File. f "pubspec.yaml") pubspec))
-      (apply exec {:in nil #_#_:out nil} (some-> *deps* :cljd/opts :kind name) "pub" "add" "--directory=."
+      (apply exec {:in nil #_#_:out nil} (some-> *basis* :cljd/opts :kind name) "pub" "add" "--directory=."
         coords))))
 
 (defn ensure-test-dev-dep! []
   (let [parser (org.yaml.snakeyaml.Yaml.)]
     (when-not (get-in (.load parser (slurp "pubspec.yaml")) ["dev_dependencies" "test"])
-      (exec {:in nil #_#_:out nil} (some-> *deps* :cljd/opts :kind name) "pub" "add" "--dev" "test"))))
+      (exec {:in nil #_#_:out nil} (some-> *basis* :cljd/opts :kind name) "pub" "add" "--dev" "test"))))
 
 (defn -main [& args]
   (binding [*ansi* (and (System/console) (get (System/getenv) "TERM"))
             compiler/*lib-path*
             (str (.getPath (java.io.File. "lib")) "/")]
+<<<<<<< Updated upstream
     (binding [*deps* (deps/create-basis nil)]
       (let [[options cmd cmd-opts & args] (parse-args commands args)]
+=======
+    (let [[options cmd cmd-opts & args] (parse-args commands args)]
+      (binding [*basis* (edn/read-string (slurp (java.lang.System/getProperty "clojure.basis"))) #_(deps/create-basis {:aliases (:aliases options)})]
+>>>>>>> Stashed changes
         (case cmd
           ("compile" "watch" "flutter" "test") (sync-pubspec!)
           nil)
@@ -570,7 +580,7 @@
           ("compile" "watch")
           (compile-cli
            :namespaces (or (seq (map symbol args))
-                           (some-> *deps* :cljd/opts :main list))
+                           (some-> *basis* :cljd/opts :main list))
            :watch (= cmd "watch"))
           "test"
           (do
@@ -578,7 +588,7 @@
             (test-cli
               :namespaces
               (or (seq (map symbol args))
-                (for [path (:paths *deps*)
+                (for [path (:paths *basis*)
                       ^java.io.File file (tree-seq
                                            some? #(.listFiles ^java.io.File %)
                                            (java.io.File. path))
@@ -593,7 +603,7 @@
             (compile-cli
              :namespaces
              (or (seq (map symbol args))
-                 (some-> *deps* :cljd/opts :main list))
+                 (some-> *basis* :cljd/opts :main list))
              :flutter (vec flutter-args)))
           "clean"
           (do
@@ -602,6 +612,6 @@
             (del-tree (java.io.File. ".clojuredart"))
             (sync-pubspec!)
             (println "ClojureDart build state succesfully cleaned!")
-            (case (some-> *deps* :cljd/opts :kind)
+            (case (some-> *basis* :cljd/opts :kind)
               :flutter (println "If problems persist, try" (bright "flutter clean"))
               nil)))))))
