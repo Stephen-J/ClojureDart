@@ -560,7 +560,7 @@
             compiler/*lib-path*
             (str (.getPath (java.io.File. "lib")) "/")]
     (let [[options cmd cmd-opts & args] (parse-args commands args)]
-      (binding [*basis* (edn/read-string (slurp (java.lang.System/getProperty "clojure.basis"))) #_(deps/create-basis {:aliases (:aliases options)})]
+      (binding [*basis* (edn/read-string (slurp (java.lang.System/getProperty "clojure.basis")))]
         (case cmd
           ("compile" "watch" "flutter" "test") (sync-pubspec!)
           nil)
